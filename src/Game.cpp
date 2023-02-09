@@ -6,6 +6,7 @@
 #include "Renderer.h"
 #include "EventManager.h"
 
+//This file contains individual definitions for member functions of Game which were declared in Game.h
 
 // Game functions - DO NOT REMOVE ***********************************************
 
@@ -191,15 +192,16 @@ void Game::Render() const
 {
 	SDL_RenderClear(Renderer::Instance().GetRenderer()); // clear the renderer to the draw colour
 
-	m_pCurrentScene->Draw();
+	m_pCurrentScene->Draw(); // Draw our game scene. A word for a collection of gameplay objects that make up a level
 
 	SDL_RenderPresent(Renderer::Instance().GetRenderer()); // draw to the screen
 
-	ImGuiWindowFrame::Instance().Render();
+	ImGuiWindowFrame::Instance().Render(); // Draws UI
 }
 
 void Game::Update() const
 {
+	//Calls the update function on the current Scene
 	m_pCurrentScene->Update();
 }
 

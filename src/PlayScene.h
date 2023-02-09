@@ -8,6 +8,8 @@
 #include "Button.h"
 #include "Label.h"
 
+//This class defines what is in the main gameplay section of our game. This is where players, enemies, bullets, etc. will live
+//This class has a Start(), Update() and Draw() function which are called by the framework at given times
 class PlayScene : public Scene
 {
 public:
@@ -15,11 +17,11 @@ public:
 	~PlayScene() override;
 
 	// Scene LifeCycle Functions
-	virtual void Draw() override;
-	virtual void Update() override;
+	virtual void Draw() override; // Called each frame we are in this scene after Update()
+	virtual void Update() override; // Called each frame we are in this scene 
 	virtual void Clean() override;
-	virtual void HandleEvents() override;
-	virtual void Start() override;
+	virtual void HandleEvents() override; // Input
+	virtual void Start() override; // Called on the first frame we are in this Scene
 private:
 	// IMGUI Function
 	void GUI_Function();
@@ -27,6 +29,7 @@ private:
 	
 	glm::vec2 m_mousePosition;
 
+	//Declaring a variable of type Plane*. This is a pointer to type Plane. Plane is a class defined in Plane.h 
 	Plane* m_pPlaneSprite{};
 	Player* m_pPlayer{};
 	bool m_playerFacingRight{};
