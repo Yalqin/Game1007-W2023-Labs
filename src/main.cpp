@@ -3,10 +3,10 @@
 #include <iostream>
 #include <Windows.h>
 
-#include "Game.h"
+#include "Game.h" //TODO: What is this?
 
-constexpr float FPS = 60.0f;
-constexpr float DELAY_TIME = 1000.0f / FPS;
+constexpr float FPS = 60.0f; //target frames per second
+constexpr float DELAY_TIME = 1000.0f / FPS; // target time between frames in ms
 
 /**
  * \brief Program Entry Point
@@ -24,26 +24,32 @@ int main(int argc, char* args[])
 	// Display Main SDL Window
 	Game::Instance().Init("SDL_Engine v0.29", 100, 100, 800, 600, false);
 
-	// Main Game Loop
+	// Main Game Loop, each iteration of this loop is one frame of the game
 	while (Game::Instance().IsRunning())
 	{
-		const auto frame_start = static_cast<float>(SDL_GetTicks());
+		//Get time in ms at the start of the frame
+		const float frame_start = static_cast<float>(SDL_GetTicks());
 
-		Game::Instance().HandleEvents();
-		Game::Instance().Update();
-		Game::Instance().Render();
+		//Calling three functions in sequence...
+		Game::Instance().HandleEvents();	// Input from player
+		Game::Instance().Update();			// Update game state according to past state and input
+		Game::Instance().Render();			// Draw to screen to show players new game state
 
-		if (const float frame_time = static_cast<float>(SDL_GetTicks()) - frame_start;
-			frame_time < DELAY_TIME)
+		//Get time that has passed this frame
+		const float frame_time = static_cast<float>(SDL_GetTicks()) - frame_start;
+		if (frame_time < DELAY_TIME) // If we completed our input-update-draw in less than target time...
 		{
+			//Wait for the difference. Do nothing.
 			SDL_Delay(static_cast<int>(DELAY_TIME - frame_time));
 		}
 
-		// delta time
+		// delta time. In seconds, how much time has passed since start of frame this time? 
 		const auto delta_time = (static_cast<float>(SDL_GetTicks()) - frame_start) / 1000.0f;
+		
+		//Setting deltaTime variable to be used in Game?
 		Game::Instance().SetDeltaTime(delta_time);
 
-		frames++;
+		frames++; // count frames passed since first frame
 		Game::Instance().SetFrames(frames);
 
 	}

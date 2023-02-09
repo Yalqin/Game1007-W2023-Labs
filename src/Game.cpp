@@ -191,16 +191,16 @@ void Game::Render() const
 {
 	SDL_RenderClear(Renderer::Instance().GetRenderer()); // clear the renderer to the draw colour
 
-	m_pCurrentScene->Draw();
+	m_pCurrentScene->Draw(); // Call Draw function on the current Scene. A Scene is a collection of game-relevant objects for a specific level
 
 	SDL_RenderPresent(Renderer::Instance().GetRenderer()); // draw to the screen
 
-	ImGuiWindowFrame::Instance().Render();
+	ImGuiWindowFrame::Instance().Render(); // Ask UI to render
 }
 
 void Game::Update() const
 {
-	m_pCurrentScene->Update();
+	m_pCurrentScene->Update(); // Call Update function on the current Scene.
 }
 
 void Game::Clean() const
