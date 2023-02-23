@@ -22,9 +22,85 @@ bool isGameRunning = true;
 //Computer memory is addressible by one number, like a home address on one very, very long street. No house is at address 0
 SDL_Window* pWindow = nullptr; // assigning a pointer to nullptr means the address 0
 SDL_Renderer* pRenderer = NULL; // NULL is the address 0. =NULL is practically the same as = nullptr
-SDL_Texture* pMySprite = NULL;
-SDL_Rect mySpriteSrc;
-SDL_Rect mySpriteDst;
+
+//You can declare your own Namespaces to solve naming conflicts.
+namespace Fund
+{
+	//The 'struct' keyword and 'class' keyword are used to declare new Types we can instantiate.
+	struct Sprite
+	{
+	public: 
+		//These are public fields. Member variables which compose our new type Sprite. 
+		//Public means that things outside this struct or class can access them
+		SDL_Texture* pTexture;
+		SDL_Rect src;
+		SDL_Rect dst;
+		double rotationDegrees;
+		SDL_RendererFlip flipState = SDL_FLIP_NONE;
+
+		//Constructors are special Member Functions of a class or struct which are used when making objects of this type
+		//The compiler knows a Constructor by the fact that it has the same name as the class and does not have a return type
+		//The Constructor with no arguments is called the Default Constructor and is used when no other constructor is explicitly called
+		Sprite()
+		{
+			std::cout << "Sprite Default Constructor!" << std::endl;
+			pTexture = nullptr;
+			src = { 0,0,0,0 };
+			dst = { 0,0,0,0 };
+		}
+
+		//A non-default constructor can take arguments
+		Sprite(SDL_Renderer* renderer, const char* imageFilePath)
+		{
+			std::cout << "Sprite Constructor!" << std::endl;
+			pTexture = IMG_LoadTexture(renderer, imageFilePath);
+			if (pTexture == NULL)
+			{
+				std::cout << "Image load failed! " << SDL_GetError() << std::endl;
+			}
+			else
+			{
+				std::cout << "Image load success: " << imageFilePath << std::endl;
+			}
+
+			//Query for our texture's width and height to set a default source rect value spanning the whole texture
+			if (SDL_QueryTexture(pTexture, NULL, NULL, &src.w, &src.h) != 0)
+			{
+				std::cout << "Query Texture failed! " << SDL_GetError() << std::endl;
+			}
+			//At this point, SDLQueryTexture has presumably used the addresses for src.w and h to place the width and height into that memory
+			src.x = 0;
+			src.y = 0;
+
+			dst.x = 0;
+			dst.y = 0;
+			dst.w = src.w;
+			dst.h = src.h;
+		}
+
+		//We can also declare Member Functions which are "called on" instances of this struct or class
+		void Draw(SDL_Renderer* renderer) 
+		{
+			int result = SDL_RenderCopyEx(renderer, pTexture, &src, &dst, rotationDegrees, NULL, flipState);
+			if (result != 0)
+			{
+				std::cout << "Render failed! " << SDL_GetError() << std::endl;
+			}
+		}
+
+		void SetPosition(int x, int y)
+		{
+			dst.x = x;
+			dst.y = y;
+		}
+	};
+}
+
+using namespace Fund;
+
+//Thanks to the Sprite struct, I can now make variables of this new Type
+Sprite myNewSpriteObject = Sprite(); // Call the Default Constructor to initialize this Sprite variable
+Sprite klingonShip;
 
 //Set up game window, start SDL features, etc. Returns true if successful, false otherwise.
 bool Initialize()
@@ -62,29 +138,20 @@ bool Initialize()
 
 void Load()
 {
-	//Load texture...
-	//SDL_Texture * IMG_LoadTexture(SDL_Renderer *renderer, const char *file);
-	pMySprite = IMG_LoadTexture(pRenderer, "../Assets/textures/enterprise.png");
-	if (pMySprite == NULL)
-	{
-		std::cout << "Image load failed! " << SDL_GetError() << std::endl;
-	}
-	else
-	{
-		std::cout << "Image load success!\n";
-	}
+	myNewSpriteObject = Sprite(pRenderer, "../Assets/textures/enterprise.png");
 
-	mySpriteSrc.x = 0;
-	mySpriteSrc.y = 0;
-	mySpriteSrc.w = 643;
-	mySpriteSrc.h = 296;
+	int shipWidth = myNewSpriteObject.src.w / 4;
+	int shipHeight = myNewSpriteObject.src.h / 4;
+	myNewSpriteObject.dst.w = shipWidth;
+	myNewSpriteObject.dst.h = shipHeight;
+	myNewSpriteObject.dst.x = (WINDOW_WIDTH / 8); // start with the left eighth of the screen as open space
+	myNewSpriteObject.dst.y = (WINDOW_HEIGHT / 2) - shipHeight/2; // exactly centered vertically
 
-	int shipWidth =	 mySpriteSrc.w / 4;
-	int shipHeight = mySpriteSrc.h / 4;
-	mySpriteDst.w = shipWidth;
-	mySpriteDst.h = shipHeight;
-	mySpriteDst.x = (WINDOW_WIDTH / 8); // start with the left eighth of the screen as open space
-	mySpriteDst.y = (WINDOW_HEIGHT / 2) - shipHeight/2; // exactly centered vertically
+	klingonShip = Sprite(pRenderer, "../Assets/textures/d7_small.png");
+	klingonShip.SetPosition(700, 400);
+
+	klingonShip.flipState = SDL_FLIP_HORIZONTAL;
+	klingonShip.rotationDegrees = 10;
 }
 
 void Input()
@@ -93,7 +160,7 @@ void Input()
 
 void Update()
 {
-	mySpriteDst.x = mySpriteDst.x + 1;
+	myNewSpriteObject.dst.x += 1;
 }
 
 void Draw()
@@ -101,12 +168,8 @@ void Draw()
 	SDL_SetRenderDrawColor(pRenderer, 0, 0, 20, 255);
 	SDL_RenderClear(pRenderer);
 
-	//the & before a variable asks for that object's memory address
-	int result = SDL_RenderCopy(pRenderer, pMySprite, &mySpriteSrc, &mySpriteDst);
-	if (result != 0)
-	{
-		std::cout << "Render failed! " << SDL_GetError() << std::endl;
-	}
+	myNewSpriteObject.Draw(pRenderer); //Call the member function Draw on my Sprite object
+	klingonShip.Draw(pRenderer);
 
 	//Show the BackBuffer which we have been drawing to prior. This is part of a common rendering technique called Double Buffering.
 	SDL_RenderPresent(pRenderer);
