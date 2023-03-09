@@ -4,6 +4,7 @@
 #include <Windows.h>
 #include <SDL.h>
 #include <SDL_image.h>
+#include <vector> //std::vector allows us to make arrays which change size https://en.cppreference.com/w/cpp/container/vector
 
 /*
 Lab 8 (week 9): Let's get our sprite moving and able to shoot projectiles!
@@ -17,6 +18,7 @@ constexpr float FPS = 60.0f; //target frames per second
 constexpr float DELAY_TIME = 1000.0f / FPS; // target time between frames in ms
 const int WINDOW_WIDTH = 1200;
 const int WINDOW_HEIGHT = 600;
+float deltaTime = 1.0f / FPS;
 
 bool isGameRunning = true;
 
@@ -32,13 +34,13 @@ namespace Fund
 	//The 'struct' keyword and 'class' keyword are used to declare new Types we can instantiate.
 	struct Sprite
 	{
-	public: 
+	public:
 		//These are public fields. Member variables which compose our new type Sprite. 
 		//Public means that things outside this struct or class can access them
 		SDL_Texture* pTexture;
 		SDL_Rect src;
 		SDL_Rect dst;
-		double rotationDegrees;
+		double rotationDegrees = 0.0;
 		SDL_RendererFlip flipState = SDL_FLIP_NONE;
 
 		//Constructors are special Member Functions of a class or struct which are used when making objects of this type
@@ -82,7 +84,7 @@ namespace Fund
 		}
 
 		//We can also declare Member Functions which are "called on" instances of this struct or class
-		void Draw(SDL_Renderer* renderer) 
+		void Draw(SDL_Renderer* renderer)
 		{
 			int result = SDL_RenderCopyEx(renderer, pTexture, &src, &dst, rotationDegrees, NULL, flipState);
 			if (result != 0)
@@ -102,8 +104,12 @@ namespace Fund
 using namespace Fund;
 
 //Thanks to the Sprite struct, I can now make variables of this new Type
-Sprite myNewSpriteObject = Sprite(); // Call the Default Constructor to initialize this Sprite variable
-Sprite klingonShip;
+Sprite playerShip = Sprite(); // Call the Default Constructor to initialize this Sprite variable
+Sprite klingonShip; 
+
+// When declaring an std::vector, you specify what Type it contains in the angle brackets.
+std::vector<Sprite> bullets; //Sprites representing bullets get put into this container
+
 
 //Set up game window, start SDL features, etc. Returns true if successful, false otherwise.
 bool Initialize()
@@ -141,14 +147,14 @@ bool Initialize()
 
 void Load()
 {
-	myNewSpriteObject = Sprite(pRenderer, "../Assets/textures/enterprise.png");
+	playerShip = Sprite(pRenderer, "../Assets/textures/enterprise.png");
 
-	int shipWidth = myNewSpriteObject.src.w / 4;
-	int shipHeight = myNewSpriteObject.src.h / 4;
-	myNewSpriteObject.dst.w = shipWidth;
-	myNewSpriteObject.dst.h = shipHeight;
-	myNewSpriteObject.dst.x = (WINDOW_WIDTH / 8); // start with the left eighth of the screen as open space
-	myNewSpriteObject.dst.y = (WINDOW_HEIGHT / 2) - shipHeight/2; // exactly centered vertically
+	int shipWidth = playerShip.src.w / 4;
+	int shipHeight = playerShip.src.h / 4;
+	playerShip.dst.w = shipWidth;
+	playerShip.dst.h = shipHeight;
+	playerShip.dst.x = (WINDOW_WIDTH / 8); // start with the left eighth of the screen as open space
+	playerShip.dst.y = (WINDOW_HEIGHT / 2) - shipHeight / 2; // exactly centered vertically
 
 	klingonShip = Sprite(pRenderer, "../Assets/textures/d7_small.png");
 	klingonShip.SetPosition(700, 400);
@@ -157,13 +163,99 @@ void Load()
 	klingonShip.rotationDegrees = 10;
 }
 
+//Player input variables
+bool isUpPressed = false;
+bool isDownPressed = false;
+bool isShootPressed = false;
+const float playerMoveSpeedPx = 600.0f; //pixels per second 
+const float playerShootCooldownDuration = 0.1f; //time between shots
+float playerShootCooldownTimer = 0.0f; //ticks down to determine when we can shoot again
+const float bulletSpeed = 1000.0f; //pixels per second
+
 void Input()
 {
+	SDL_Event event;
+	while (SDL_PollEvent(&event))
+	{  // poll until all events are handled!
+		// decide what to do with this event.
+
+		switch (event.type)
+		{
+		case(SDL_KEYDOWN): //If a key was pressed...
+			//Respond to keys differently
+			switch (event.key.keysym.scancode)
+			{
+			case(SDL_SCANCODE_W):
+				isUpPressed = true; // Keep track of the held state of the input
+				break;
+			case(SDL_SCANCODE_S):
+				isDownPressed = true;
+				break;
+			case(SDL_SCANCODE_SPACE):
+				isShootPressed = true;
+				break;
+			}
+			break;
+		case(SDL_KEYUP):
+			switch (event.key.keysym.scancode)
+			{
+			case(SDL_SCANCODE_W):
+				isUpPressed = false; // When released, update the held state of our input
+				break;
+			case(SDL_SCANCODE_S):
+				isDownPressed = false;
+				break;
+			case(SDL_SCANCODE_SPACE):
+				isShootPressed = false;
+				break;
+			}
+			break;
+		}
+	}
 }
 
 void Update()
 {
-	myNewSpriteObject.dst.x += 1;
+	//Move player ship accord
+	if (isUpPressed)
+	{
+		playerShip.dst.y -= playerMoveSpeedPx * deltaTime; // px/s * deltaTime = px moved this frame
+	}
+	if (isDownPressed)
+	{
+		playerShip.dst.y += playerMoveSpeedPx * deltaTime;
+	}
+
+	if (isShootPressed)
+	{
+		//If player shoot is off cooldown
+		if (playerShootCooldownTimer <= 0.0f)
+		{
+			//Make a new bullet
+			Sprite bullet = Sprite(pRenderer, "../Assets/textures/bullet.png");
+
+			//Set bullet start position
+			bullet.dst.x = playerShip.dst.x + playerShip.dst.w - bullet.dst.w;
+			bullet.dst.y = playerShip.dst.y + (playerShip.dst.h / 2) - (bullet.dst.h/2);
+
+			//Add bullet to our dynamic array of bullets. 
+			bullets.push_back(bullet); //So far we have not yet dealt with getting rid of them afterward...
+
+			//Reset cooldown timer
+			playerShootCooldownTimer = playerShootCooldownDuration; 
+		}
+	}
+
+	//Tick down shoot cooldown
+	playerShootCooldownTimer -= deltaTime;
+
+	//std::vector::size() tells us how many elements are in it
+	for (int i = 0; i < bullets.size(); i++) //For each item in the container...
+	{
+		//Move each bullet
+		bullets[i].dst.x += bulletSpeed * deltaTime;
+	}
+
 }
 
 void Draw()
@@ -171,7 +263,13 @@ void Draw()
 	SDL_SetRenderDrawColor(pRenderer, 0, 0, 20, 255);
 	SDL_RenderClear(pRenderer);
 
-	myNewSpriteObject.Draw(pRenderer); //Call the member function Draw on my Sprite object
+	//Draw all our bullets
+	for (int i = 0; i < bullets.size(); i++) //For each item in the container...
+	{
+		bullets[i].Draw(pRenderer); // Draw each one
+	}
+
+	playerShip.Draw(pRenderer); //Call the member function Draw on my Sprite object
 	klingonShip.Draw(pRenderer);
 
 	//Show the BackBuffer which we have been drawing to prior. This is part of a common rendering technique called Double Buffering.
@@ -213,7 +311,7 @@ int main(int argc, char* args[])
 		}
 
 		// delta time. In seconds, how much time has passed since start of frame this time? 
-		const auto delta_time = (static_cast<float>(SDL_GetTicks()) - frame_start) / 1000.0f;
+		// deltaTime = (static_cast<float>(SDL_GetTicks()) - frame_start) / 1000.0f;
 	}
 
 	getchar();
