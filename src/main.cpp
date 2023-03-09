@@ -4,6 +4,7 @@
 #include <Windows.h>
 #include <SDL.h> // Allows us to use features from the SDL Library
 #include <SDL_Image.h>
+#include <vector> //std::vector is an array with variable size
 
 /*
 Lab 8 (week 9): Let's get our sprite moving and able to shoot projectiles!
@@ -15,9 +16,14 @@ When we are ready to scale up, we can start using containers, like arrays or std
 
 //All these variables are considered "Global variables" which can be accessed from any Function.
 constexpr float FPS = 60.0f;
-constexpr float DELAY_TIME = 1000.0f / FPS;
+constexpr float DELAY_TIME = 1000.0f / FPS; // target deltaTime in ms
 const int SCREEN_WIDTH = 1200;
 const int SCREEN_HEIGHT = 600;
+
+//At 60FPS, how much time passes each frame?
+//60 frames per second. Every second, we pass 60 frames
+//How many seconds pass for each frame?
+float deltaTime = 1.0f / FPS; // time passing between frames in seconds
 
 SDL_Window* pWindow = nullptr; //This is a pointer to SDL_Window. It stores a memory location which we can use later
 SDL_Renderer* pRenderer = nullptr;
@@ -78,7 +84,13 @@ namespace Fund
 //After the declaration of the Fund::Sprite struct, we can make our own variables of this Type!
 Fund::Sprite spriteStarshipEnterprise;
 Fund::Sprite klingonShip1;
-Fund::Sprite klingonShip2;
+//Fund::Sprite bullet;
+std::vector<Fund::Sprite> bulletContainer; //std::vector is a class which allows changing size. This is a dynamic array of Fund::Sprite
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////// INIT ////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //Initialize SDL, open a window and set up renderer. Returns false if failed
 bool Init()
@@ -121,6 +133,10 @@ bool Init()
 	return true;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////// LOAD ////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void Load()
 {
 	char* fileToLoad = "../Assets/textures/enterprise.png";
@@ -144,20 +160,144 @@ void Load()
 	klingonShip1.rotation = 10.0;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////// INPUT ///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//Input variables
+bool isUpPressed = false;
+bool isDownPressed = false;
+bool isShootPressed = false;
+float playerMoveSpeedPxPerSec = 65.0f; // Px/sec, px/sec * sec = px
+float playerFireRepeatDelaySec = 1.0; // seconds
+float playerFireCooldownTimerSec = 0.0f; // seconds
+float bulletSpeedPx = 1000.0f; // Px/sec
+
 void Input()
 {
+	SDL_Event event; // Event data polled each time
+	while (SDL_PollEvent(&event))  // poll until all events are handled!
+	{ 
+		// decide what to do with this event.
+		switch (event.type)
+		{
+		case(SDL_KEYDOWN):
+		{
+			SDL_Scancode key = event.key.keysym.scancode;
+			switch (key)
+			{
+			case(SDL_SCANCODE_W):
+			{
+				isUpPressed = true;
+				break;
+			}
+			case(SDL_SCANCODE_S):
+			{
+				isDownPressed = true;
+				break;
+			}
+			case(SDL_SCANCODE_SPACE):
+			{
+				isShootPressed = true;
+				break;
+			}
+			break;
+			}
+			break;
+		}
+		case(SDL_KEYUP):
+		{
+			SDL_Scancode key = event.key.keysym.scancode;
+			switch (key)
+			{
+			case(SDL_SCANCODE_W):
+			{
+				isUpPressed = false;
+				break;
+			}
+			case(SDL_SCANCODE_S):
+			{
+				isDownPressed = false;
+				break;
+			}
+			case(SDL_SCANCODE_SPACE):
+			{
+				isShootPressed = false;
+				break;
+			}
+			}
+			break;
+		}
+		}
 
+	}
 }
 
-void Update()
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////// UPDATE //////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void Update() // called every frame at FPS
 {
-	spriteStarshipEnterprise.dst.x += 2;
+	//spriteStarshipEnterprise.dst.x += 2;
+	if (isUpPressed)
+	{
+		spriteStarshipEnterprise.dst.y -= ((playerMoveSpeedPxPerSec * deltaTime) + 0.5f);
+	}
+
+	if (isDownPressed)
+	{
+		spriteStarshipEnterprise.dst.y += ((playerMoveSpeedPxPerSec * deltaTime) + 0.5f);
+	}
+
+	//If shooting and our shooting is off cooldown
+	if (isShootPressed && playerFireCooldownTimerSec <= 0.0f)
+	{
+		std::cout << "Shoot\n";
+		
+		//Create new bullet
+		Fund::Sprite bullet = Fund::Sprite(pRenderer, "../Assets/textures/bullet.png");
+
+		//Start bullet at player sprite position
+		bullet.dst.x = spriteStarshipEnterprise.dst.x + spriteStarshipEnterprise.dst.w;
+		bullet.dst.y = spriteStarshipEnterprise.dst.y + (spriteStarshipEnterprise.dst.h/2) - (bullet.dst.h/2);
+		
+		//Add bullet to container (to the end of the array)
+		bulletContainer.push_back(bullet);
+
+		//Reset cooldown
+		playerFireCooldownTimerSec = playerFireRepeatDelaySec;
+	}
+	//Tick down the time for our firing cooldown
+	playerFireCooldownTimerSec -= deltaTime;
+
+	//move ALL bullets across screen
+	for (int i = 0; i < bulletContainer.size(); i++)
+	{
+		//To access elements of an array, we use the array access operator []
+
+		//Get a reference to the bullet in the container
+		Fund::Sprite* someBullet = &bulletContainer[i];
+
+		someBullet->dst.x += bulletSpeedPx * deltaTime;
+	}
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////// DRAW ////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void Draw()
 {
 	SDL_SetRenderDrawColor(pRenderer, 5, 5, 15, 255);
 	SDL_RenderClear(pRenderer);
+
+	//Draw ALL bullets on screen
+	for (int i = 0; i < bulletContainer.size(); i++)
+	{
+		Fund::Sprite* someBullet = &bulletContainer[i];
+		someBullet->Draw(pRenderer);
+	}
 
 	spriteStarshipEnterprise.Draw(pRenderer);
 	klingonShip1.Draw(pRenderer);
@@ -167,9 +307,10 @@ void Draw()
 	SDL_RenderPresent(pRenderer);
 }
 
-/**
- * \brief Program Entry Point
- */
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////// MAIN  ///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 int main(int argc, char* args[])
 {
 	// show and position the application console
@@ -206,7 +347,7 @@ int main(int argc, char* args[])
 		}
 
 		// delta time. Time elapsed this frame, in seconds
-		const float delta_time = (static_cast<float>(SDL_GetTicks()) - frame_start) / 1000.0f;
+		//deltaTime = (static_cast<float>(SDL_GetTicks()) - frame_start) / 1000.0f;
 	}
 
 	return 0;
