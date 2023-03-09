@@ -6,7 +6,11 @@
 #include <SDL_Image.h>
 
 /*
-Let's use SDL to open a window, and render some sprites at given locations and scales
+Lab 8 (week 9): Let's get our sprite moving and able to shoot projectiles!
+
+To get input from the keyboard we will use the function SDL_PollEvent https://wiki.libsdl.org/SDL2/SDL_PollEvent
+To shoot projectiles, we may need a projectile class with velocity 
+When we are ready to scale up, we can start using containers, like arrays or std::vector
 */
 
 //All these variables are considered "Global variables" which can be accessed from any Function.
@@ -71,6 +75,7 @@ namespace Fund
 	};
 }
 
+//After the declaration of the Fund::Sprite struct, we can make our own variables of this Type!
 Fund::Sprite spriteStarshipEnterprise;
 Fund::Sprite klingonShip1;
 Fund::Sprite klingonShip2;
