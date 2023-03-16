@@ -7,11 +7,12 @@
 #include <vector> //std::vector is an array with variable size
 
 /*
-Lab 8 (week 9): Let's get our sprite moving and able to shoot projectiles!
+ Lab 9 (week 10)
+Improve movement precision by storing floating point position so we can move distances less than a pixel in one frame
+Improve encapsulation by hiding the position behind a getter and setter function
+Encapsulation means "hiding details that we don't need to worry about"
 
-To get input from the keyboard we will use the function SDL_PollEvent https://wiki.libsdl.org/SDL2/SDL_PollEvent
-To shoot projectiles, we may need a projectile class with velocity 
-When we are ready to scale up, we can start using containers, like arrays or std::vector
+Allow us to load a sprite sheet image, then draw one frame at a time from the image
 */
 
 //All these variables are considered "Global variables" which can be accessed from any Function.
@@ -29,20 +30,65 @@ SDL_Window* pWindow = nullptr; //This is a pointer to SDL_Window. It stores a me
 SDL_Renderer* pRenderer = nullptr;
 bool isGameRunning = true;
 
+
+
 namespace Fund
 {
+	struct Vec2 // This struct represents a 2-dimensional vector
+	{
+		float x = 0;
+		float y = 0;
+	};
+
 	//Declaring a struct or class declares a new type of object we can make. After this is declared, we can make Sprite variables that
 	//have all of the contained data fields, and functions
 	struct Sprite
 	{
-	public:
-		//public fields can be accessed from outside the struct or class
+	private: //private fields cannot be accessed outside the struct or class
+			
 		SDL_Texture* pTexture;
 		SDL_Rect src;
 		SDL_Rect dst;
+	//	int animationCurrentFrame = 0;
+	//	float animationTime01 = 0.0f;//0 is frame 0, 1 is frameCount, multiply by frameCount to get currentFrame e.g. 0 * frameCount = 0. 1 * frameCount = 5 //Option A
+
+		float animationCurrentFrame = 0.0f; // same as storing which frame, but must be converted back to int to draw (e.g. frame 3.4 becomes frame 3) // Option B
+
+	public: //public fields can be accessed from outside the struct or class
 		double rotation = 0;
 		SDL_RendererFlip flipState = SDL_FLIP_NONE;
+		Vec2 position; // position of the sprite on the screen
+		int animationFrameCount = 1;
 
+		//Getter and setter functions
+		//Functions which change the state of a struct or class are sometimes called Mutators, or setters
+		void SetSize(Vec2 sizeWidthHeight)
+		{
+			dst.w = sizeWidthHeight.x;
+			dst.h = sizeWidthHeight.y;
+		}
+
+		//This and the other SetSize have the exact same name, but take different data. The correct one will be chosen by the compiler based on what parameters you put in it
+		void SetSize(int w, int h)
+		{
+			dst.w = w;
+			dst.h = h;
+		}
+
+		//Functions which access data from within are sometimes called Accessors, or getters
+		Vec2 GetSize()
+		{
+			Vec2 returnVec = {dst.w,dst.h};
+			return returnVec;
+		}
+
+		//For animation, we want to know the dimensions of one frame of animation
+		void SetSpriteSheetFrameSize(int width, int height)
+		{
+			src.w = width;
+			src.h = height;
+		}
+		
 		//This is a constructor. This is a special type of function used when creating an object.
 		//The compiler knows it's a constructor because it has parentheses like a function, 
 		//has the SAME NAME as the struct or class, and has no return type. 
@@ -66,8 +112,15 @@ namespace Fund
 				std::cout << "Image failed to load: " << SDL_GetError() << std::endl;
 			}
 			SDL_QueryTexture(pTexture, NULL, NULL, &src.w, &src.h); //ask for the dimensions of the texture
-			dst = SDL_Rect{ 0,0,src.w,src.h};
 			//At this point, the width and the height of the texture should be placed at the memory addresses of src.w and src.h
+			dst = SDL_Rect{ 0,0,src.w,src.h};
+		}
+
+		Sprite(SDL_Renderer* renderer, const char* filePathToLoad, int frameSizeX, int frameSizeY, int frameCount) : Sprite(renderer, filePathToLoad)
+		{
+			SetSpriteSheetFrameSize(frameSizeX, frameSizeY);
+			SetSize(frameSizeX, frameSizeY);
+			animationFrameCount = frameCount;
 		}
 
 		//This draw function can be called on individual variables of type Fund::Sprite, 
@@ -76,7 +129,35 @@ namespace Fund
 		//myNewSprite.Draw(pRenderer);
 		void Draw(SDL_Renderer* renderer)
 		{
+			dst.x = position.x;
+			dst.y = position.y;
+			src.x = src.w * (int)animationCurrentFrame;
 			SDL_RenderCopyEx(renderer, pTexture, &src, &dst, rotation, NULL, flipState);
+		}
+
+		void NextFrame()
+		{
+			SetFrame(animationCurrentFrame + 1);
+		}
+
+		void SetFrame( int frame)
+		{
+			animationCurrentFrame = frame % animationFrameCount;
+			src.x = src.w * animationCurrentFrame;
+		}
+
+		void AddFrameTime(float timeScale) // Call this in game update loop
+		{
+			//game FPS = 60
+			//deltaTime = 1/60 seconds
+			//sprite target FPS = 12
+			//So animationCurrentFrame should go up by some amount each frame such that it increases by 1, 12 times per second
+			//NextFrame();
+			animationCurrentFrame += timeScale;
+			if (animationCurrentFrame >= animationFrameCount)
+			{
+				animationCurrentFrame -= animationFrameCount;
+			}
 		}
 	};
 }
@@ -84,6 +165,9 @@ namespace Fund
 //After the declaration of the Fund::Sprite struct, we can make our own variables of this Type!
 Fund::Sprite spriteStarshipEnterprise;
 Fund::Sprite klingonShip1;
+
+Fund::Sprite heli; //For animation lab
+
 //Fund::Sprite bullet;
 std::vector<Fund::Sprite> bulletContainer; //std::vector is a class which allows changing size. This is a dynamic array of Fund::Sprite
 
@@ -143,21 +227,26 @@ void Load()
 
 	spriteStarshipEnterprise = Fund::Sprite(pRenderer, fileToLoad);
 
-	int shipWidth = spriteStarshipEnterprise.src.w / 4;
-	int shipHeight = spriteStarshipEnterprise.src.h / 4;
+	Fund::Vec2 shipSize = spriteStarshipEnterprise.GetSize();
+	int shipWidth = shipSize.x / 4;
+	int shipHeight = shipSize.y / 4;
 
 	//Describe location to paste to on the screen
-	spriteStarshipEnterprise.dst.w = shipWidth;
-	spriteStarshipEnterprise.dst.h = shipHeight;
-	spriteStarshipEnterprise.dst.x = 50;
-	spriteStarshipEnterprise.dst.y = (SCREEN_HEIGHT / 2) - (shipHeight / 2);
+	spriteStarshipEnterprise.SetSize(shipWidth, shipHeight);
 
+	spriteStarshipEnterprise.position.x = 50;
+	spriteStarshipEnterprise.position.y = (SCREEN_HEIGHT / 2) - (shipHeight / 2);
 
 	klingonShip1 = Fund::Sprite(pRenderer, "../Assets/textures/d7_small.png");
-	klingonShip1.dst.x = 500;
-	klingonShip1.dst.y = 300;
+	klingonShip1.position = { 500, 300 };
 	klingonShip1.flipState = SDL_FLIP_HORIZONTAL;
 	klingonShip1.rotation = 10.0;
+
+	//helicopter.png is a sprite sheet, so we made a new constructor for that type of loading
+	int heliWidth = 128;
+	int heliHeight = 55;
+	int heliFrameCount = 5;
+	heli = Fund::Sprite(pRenderer, "../Assets/textures/helicopter.png", heliWidth, heliHeight, heliFrameCount);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -242,12 +331,12 @@ void Update() // called every frame at FPS
 	//spriteStarshipEnterprise.dst.x += 2;
 	if (isUpPressed)
 	{
-		spriteStarshipEnterprise.dst.y -= ((playerMoveSpeedPxPerSec * deltaTime) + 0.5f);
+		spriteStarshipEnterprise.position.y -= ((playerMoveSpeedPxPerSec * deltaTime) + 0.5f);
 	}
 
 	if (isDownPressed)
 	{
-		spriteStarshipEnterprise.dst.y += ((playerMoveSpeedPxPerSec * deltaTime) + 0.5f);
+		spriteStarshipEnterprise.position.y += ((playerMoveSpeedPxPerSec * deltaTime) + 0.5f);
 	}
 
 	//If shooting and our shooting is off cooldown
@@ -259,8 +348,8 @@ void Update() // called every frame at FPS
 		Fund::Sprite bullet = Fund::Sprite(pRenderer, "../Assets/textures/bullet.png");
 
 		//Start bullet at player sprite position
-		bullet.dst.x = spriteStarshipEnterprise.dst.x + spriteStarshipEnterprise.dst.w;
-		bullet.dst.y = spriteStarshipEnterprise.dst.y + (spriteStarshipEnterprise.dst.h/2) - (bullet.dst.h/2);
+		bullet.position.x = spriteStarshipEnterprise.position.x + spriteStarshipEnterprise.GetSize().x;
+		bullet.position.y = spriteStarshipEnterprise.position.y + (spriteStarshipEnterprise.GetSize().y/2) - (bullet.GetSize().y / 2);
 		
 		//Add bullet to container (to the end of the array)
 		bulletContainer.push_back(bullet);
@@ -279,8 +368,11 @@ void Update() // called every frame at FPS
 		//Get a reference to the bullet in the container
 		Fund::Sprite* someBullet = &bulletContainer[i];
 
-		someBullet->dst.x += bulletSpeedPx * deltaTime;
+		someBullet->position.x += bulletSpeedPx * deltaTime;
 	}
+
+	//animate helicopter
+	heli.AddFrameTime(0.2);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -301,6 +393,7 @@ void Draw()
 
 	spriteStarshipEnterprise.Draw(pRenderer);
 	klingonShip1.Draw(pRenderer);
+	heli.Draw(pRenderer);
 
 	// RenderPresent shows the hidden space we were drawing to called the BackBuffer. 
 	// For more information why we use this, look up Double Buffering Rendering
