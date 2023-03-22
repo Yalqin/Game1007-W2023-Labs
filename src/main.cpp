@@ -7,10 +7,11 @@
 #include <vector> //std::vector allows us to make arrays which change size https://en.cppreference.com/w/cpp/container/vector
 
 /*
-Lab 8 (week 9): Let's get our sprite moving and able to shoot projectiles!
-To get input from the keyboard we will use the function SDL_PollEvent https://wiki.libsdl.org/SDL2/SDL_PollEvent
-To shoot projectiles, we may need a projectile class with velocity
-When we are ready to scale up, we can start using containers, like arrays or std::vector
+Lab 9 (week 10)
+Let's improve our existing code to be a little more usable with Encapsulation and a new Vec2 class
+Let's fix the sprite moving up and down at inconsistent rates
+Let's add the ability to load a sprite sheet and animate it (relevant to lab 4 and bonuses in the term project)
+
 */
 
 //Global variables are accessible from any context
@@ -31,17 +32,30 @@ SDL_Renderer* pRenderer = NULL; // NULL is the address 0. =NULL is practically t
 //You can declare your own Namespaces to solve naming conflicts.
 namespace Fund
 {
+	struct Vec2 // a 2-dimensional vector
+	{
+		float x;
+		float y;
+	};
+
 	//The 'struct' keyword and 'class' keyword are used to declare new Types we can instantiate.
 	struct Sprite
 	{
-	public:
-		//These are public fields. Member variables which compose our new type Sprite. 
-		//Public means that things outside this struct or class can access them
+	private:
+		//Private fields cannot be accessed outside this struct or class
+		//This is useful to hide implementation details from the outside, which is good so other programmers can't use them to make bugs
 		SDL_Texture* pTexture;
 		SDL_Rect src;
 		SDL_Rect dst;
+		int animationFrameCount = 1;
+		float animationCurrentFrame = 0;
+
+	public:
+		//These are public fields. Member variables which compose our new type Sprite. 
+		//Public means that things outside this struct or class can access them
 		double rotationDegrees = 0.0;
 		SDL_RendererFlip flipState = SDL_FLIP_NONE;
+		Vec2 position; //Where the sprite will draw on the screen
 
 		//Constructors are special Member Functions of a class or struct which are used when making objects of this type
 		//The compiler knows a Constructor by the fact that it has the same name as the class and does not have a return type
@@ -83,20 +97,65 @@ namespace Fund
 			dst.h = src.h;
 		}
 
+		//A constructor for animated Sprites
+		Sprite(SDL_Renderer* renderer, const char* imageFilePath, int frameWidth, int frameHeight, int numberOfFramesInSheet) : Sprite(renderer, imageFilePath)
+		{
+			src.w = frameWidth;
+			src.h = frameHeight;
+			SetSize(frameWidth, frameHeight);
+			animationFrameCount = numberOfFramesInSheet;
+		}
+
 		//We can also declare Member Functions which are "called on" instances of this struct or class
 		void Draw(SDL_Renderer* renderer)
 		{
+			dst.x = position.x;
+			dst.y = position.y;
+			src.x = (int)animationCurrentFrame * src.w; // find current frame position in source image
 			int result = SDL_RenderCopyEx(renderer, pTexture, &src, &dst, rotationDegrees, NULL, flipState);
 			if (result != 0)
 			{
 				std::cout << "Render failed! " << SDL_GetError() << std::endl;
 			}
 		}
+		//Accessor functions get information in the class, Mutators change it.
+		//Also called Getters and Setters.
+		void SetAnimationFrameDimensions(int frameWidth, int frameHeight)
+		{
+			src.w = frameWidth;
+			src.h = frameHeight;
+		}
+		
+		void NextFrame()
+		{
+			AddFrameTime(1.0f);
+		}
 
+		void AddFrameTime(float frames)
+		{
+			animationCurrentFrame += frames;
+			if (animationCurrentFrame >= animationFrameCount)
+			{
+				animationCurrentFrame = 0;
+			}
+		}
+		
 		void SetPosition(int x, int y)
 		{
-			dst.x = x;
-			dst.y = y;
+			position.x = x;
+			position.y = y;
+		}
+
+		void SetSize(int x, int y)
+		{
+			dst.w = x;
+			dst.h = y;
+		}
+
+		Vec2 GetSize()
+		{
+			Vec2 sizeXY = { dst.w, dst.h };
+			return sizeXY;
 		}
 	};
 }
@@ -106,6 +165,7 @@ using namespace Fund;
 //Thanks to the Sprite struct, I can now make variables of this new Type
 Sprite playerShip = Sprite(); // Call the Default Constructor to initialize this Sprite variable
 Sprite klingonShip; 
+Sprite spaceHelicopter;
 
 // When declaring an std::vector, you specify what Type it contains in the angle brackets.
 std::vector<Sprite> bullets; //Sprites representing bullets get put into this container
@@ -149,25 +209,30 @@ void Load()
 {
 	playerShip = Sprite(pRenderer, "../Assets/textures/enterprise.png");
 
-	int shipWidth = playerShip.src.w / 4;
-	int shipHeight = playerShip.src.h / 4;
-	playerShip.dst.w = shipWidth;
-	playerShip.dst.h = shipHeight;
-	playerShip.dst.x = (WINDOW_WIDTH / 8); // start with the left eighth of the screen as open space
-	playerShip.dst.y = (WINDOW_HEIGHT / 2) - shipHeight / 2; // exactly centered vertically
+	int shipWidth = playerShip.GetSize().x / 4;
+	int shipHeight = playerShip.GetSize().y / 4;
+	playerShip.SetSize(shipWidth, shipHeight);
+
+	playerShip.position.x = (WINDOW_WIDTH / 8); // start with the left eighth of the screen as open space
+	playerShip.position.y = (WINDOW_HEIGHT / 2) - shipHeight / 2; // exactly centered vertically
 
 	klingonShip = Sprite(pRenderer, "../Assets/textures/d7_small.png");
 	klingonShip.SetPosition(700, 400);
 
 	klingonShip.flipState = SDL_FLIP_HORIZONTAL;
 	klingonShip.rotationDegrees = 10;
+
+	int frameWidth = 128;
+	int frameHeight = 55;
+	int frameCount = 5;
+	spaceHelicopter = Sprite(pRenderer, "../Assets/textures/helicopter.png", frameWidth, frameHeight, frameCount);
 }
 
 //Player input variables
 bool isUpPressed = false;
 bool isDownPressed = false;
 bool isShootPressed = false;
-const float playerMoveSpeedPx = 600.0f; //pixels per second 
+const float playerMoveSpeedPx = 50.0f; //pixels per second 
 const float playerShootCooldownDuration = 0.1f; //time between shots
 float playerShootCooldownTimer = 0.0f; //ticks down to determine when we can shoot again
 const float bulletSpeed = 1000.0f; //pixels per second
@@ -219,11 +284,11 @@ void Update()
 	//Move player ship accord
 	if (isUpPressed)
 	{
-		playerShip.dst.y -= playerMoveSpeedPx * deltaTime; // px/s * deltaTime = px moved this frame
+		playerShip.position.y -= playerMoveSpeedPx * deltaTime; // px/s * deltaTime = px moved this frame
 	}
 	if (isDownPressed)
 	{
-		playerShip.dst.y += playerMoveSpeedPx * deltaTime;
+		playerShip.position.y += playerMoveSpeedPx * deltaTime;
 	}
 
 	if (isShootPressed)
@@ -235,8 +300,8 @@ void Update()
 			Sprite bullet = Sprite(pRenderer, "../Assets/textures/bullet.png");
 
 			//Set bullet start position
-			bullet.dst.x = playerShip.dst.x + playerShip.dst.w - bullet.dst.w;
-			bullet.dst.y = playerShip.dst.y + (playerShip.dst.h / 2) - (bullet.dst.h/2);
+			bullet.position.x = playerShip.position.x + playerShip.GetSize().x - bullet.GetSize().x;
+			bullet.position.y = playerShip.position.y + (playerShip.GetSize().y / 2) - (bullet.GetSize().y / 2);
 
 			//Add bullet to our dynamic array of bullets. 
 			bullets.push_back(bullet); //So far we have not yet dealt with getting rid of them afterward...
@@ -253,9 +318,10 @@ void Update()
 	for (int i = 0; i < bullets.size(); i++) //For each item in the container...
 	{
 		//Move each bullet
-		bullets[i].dst.x += bulletSpeed * deltaTime;
+		bullets[i].position.x += bulletSpeed * deltaTime;
 	}
 
+	spaceHelicopter.AddFrameTime(0.1);
 }
 
 void Draw()
@@ -271,6 +337,7 @@ void Draw()
 
 	playerShip.Draw(pRenderer); //Call the member function Draw on my Sprite object
 	klingonShip.Draw(pRenderer);
+	spaceHelicopter.Draw(pRenderer);
 
 	//Show the BackBuffer which we have been drawing to prior. This is part of a common rendering technique called Double Buffering.
 	SDL_RenderPresent(pRenderer);
